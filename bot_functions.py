@@ -63,26 +63,31 @@ def get_positions(client):
     return positions
 
 #get trades we opened in the market the bot is trading in
-def get_specific_positon(client, _market="BTCUSDT"):
+def get_specific_position(client, _market="BTCUSDT"):
     positions = get_positions(client)
 
     for position in positions:
         if position.symbol == _market:
-            break
+            return position
+    # None: No position in _market
 
-    return position
-
+def position_amount(position):
+    if position is None or not position.positionAmt:
+        return 0.0
+    return float(position.positionAmt)
+    
 #close opened position
 def close_position(client, _market="BTCUSDT"):
-    position = get_specific_positon(client, _market)
-    qty = float(position.positionAmt)
+    position = get_specific_position(client, _market)
+    qty = position_amount(position)
 
-    _side = "BUY"
-    if qty > 0.0:
+    if qty > 0:
         _side = "SELL"
-
-    if qty < 0.0:
-        qty = qty * -1
+    elif qty < 0:
+        _side = "BUY"
+        qty *= -1
+    else:
+        return
 
     qty = str(qty)
 
@@ -92,13 +97,13 @@ def close_position(client, _market="BTCUSDT"):
 
 #get the liquidation price of the position we are in. - We don't use this - be careful!
 def get_liquidation(client, _market="BTCUSDT"):
-    position = get_specific_positon(client, _market)
+    position = get_specific_position(client, _market)
     price = position.liquidationPrice
     return price
 
 #Get the entry price of the position the bot is in
 def get_entry(client, _market="BTCUSDT"):
-    position = get_specific_positon(client, _market)
+    position = get_specific_position(client, _market)
     price = position.entryPrice
     return price
 
@@ -111,18 +116,18 @@ def execute_order(client, _market="BTCUSDT", _type = "MARKET", _side="BUY", _pos
                       quantity = _qty)
 
 #calculate how big a position we can open with the margin we have and the leverage we are using
-def calculate_position_size(client, usdt_balance=1.0, _market="BTCUSDT", _leverage=1):
+def calculate_position_size(client, usdt_balance=1.0, _market="BTCUSDT", _leverage=1, _utilization=.95):
     price = client.get_symbol_price_ticker(_market)
     price = price[0].price
 
     qty = (float(usdt_balance) / price) * _leverage
-    qty = round(qty * 0.99,8)
+    qty = round(qty * _utilization,8)
 
     return qty
 
 #check if the position is still active, or if the trailing stop was hit.
 def check_in_position(client, _market="BTCUSDT"):
-    position = get_specific_positon(client, _market)
+    position = get_specific_position(client, _market)
 
     in_position = False
 
@@ -209,10 +214,10 @@ def construct_heikin_ashi(o, h, l, c):
 
     return h_o, h_h, h_l, h_c
 
-def handle_signal(client, std, market="BTCUSDT", leverage=3, order_side="BUY", 
+def handle_signal(client, std, market="BTCUSDT", leverage=3, utilization=.95, order_side="BUY", 
                   stop_side="SELL", _callbackRate=2.0):
     initialise_futures(client, _market=market, _leverage=leverage)
-    qty = calculate_position(client, market, _leverage=leverage)
+    qty = calculate_position(client, market, _leverage=leverage, _utilization=utilization)
 
     enablePrint(std)
     execute_order(client, _qty=qty, _side=order_side, _market=market)
@@ -391,9 +396,9 @@ def get_multi_scale_signal(client, _market="BTCUSDT", _periods=["1m"]):
     return trade_signal
 
 #calculate a rounded position size for the bot, based on current USDT holding, leverage and market
-def calculate_position(client, _market="BTCUSDT", _leverage=1):
+def calculate_position(client, _market="BTCUSDT", _leverage=1, _utilization=.95):
     usdt = get_futures_balance(client, _asset = "USDT")
-    qty = calculate_position_size(client, usdt_balance=usdt, _market=_market, _leverage=_leverage)
+    qty = calculate_position_size(client, usdt_balance=usdt, _market=_market, _leverage=_leverage, _utilization=_utilization)
     precision = get_market_precision(client, _market=_market)
     qty = round_to_precision(qty, precision)
     return qty

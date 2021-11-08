@@ -14,10 +14,18 @@ margin_type = settings.margin_type
 confirmation_periods = settings.trading_periods.split(",")
 trailing_percentage = float(settings.trailing_percentage)
 
+utilization_percentage = 95.0
+try:
+    utilization_percentage = float(settings.utilization_percentage)
+except:
+    pass
+utilization = utilization_percentage / 100.0
+assert utilization <= .95
+
 #turn off print unless we really need to print something
 std = bf.getStdOut()
 bf.blockPrint()
-bf.singlePrint("Bot Starting", std)
+bf.singlePrint("Bot Starting; Market: {}, Leverage: {}, Utilization: {}%".format( market, leverage, utilization * 100), std)
 
 #global values used by bot to keep track of state
 entry_price = 0
@@ -40,14 +48,14 @@ while True:
             #if the second last signal in the generated set of data is -1, then open a SHORT
             if entry[-2] == -1:
                 qty, side, in_position = bf.handle_signal(client, std, 
-                                                          market=market, leverage=leverage, 
+                                                          market=market, leverage=leverage, utilization=utilization,
                                                           order_side="SELL", stop_side="BUY", 
                                                           _callbackRate=trailing_percentage)
 
             #if the second last signal in the generated set of data is 1, then open a LONG
             elif entry[-2] == 1:
                 qty, side, in_position = bf.handle_signal(client, std, 
-                                                          market=market, leverage=leverage, 
+                                                          market=market, leverage=leverage, utilization=utilization,
                                                           order_side="BUY", stop_side="SELL", 
                                                           _callbackRate=trailing_percentage)
 
